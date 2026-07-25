@@ -5,13 +5,7 @@
 {
 "src": "data:image/svg+xml;utf8,",
 "type": "image/svg+xml",
-"sizes": "192x192",
-"purpose": "any maskable"
-},
-{
-"src": "data:image/svg+xml;utf8,",
-"type": "image/svg+xml",
-"sizes": "512x512",
+"sizes": "192x192 512x512",
 "purpose": "any maskable"
 }
 ],
