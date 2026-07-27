@@ -3,8 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>QuickBill - Invoice, Quotation & Receipt Generator</title>
+  <title>QuickBill - Invoice, Quotation & Thermal Receipt Generator</title>
   
+  <!-- PWA Manifest Link -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
@@ -12,14 +13,21 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="QuickBill">
 
-  <!-- External CDNs -->
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- html2canvas CDN for image generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- html2pdf.js CDN for PDF export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   
+  <!-- Google Fonts: Inter & Space Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons CDN -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
   <style>
@@ -32,6 +40,7 @@
       font-family: 'Space Mono', monospace;
     }
     
+    /* Thermal paper cut effect for Cash Bill */
     .thermal-paper {
       background-color: #ffffff;
       color: #111111;
@@ -50,6 +59,7 @@
       background-size: 12px 12px;
     }
 
+    /* Professional A4 Paper Simulation */
     .a4-paper {
       background-color: #ffffff;
       color: #0f172a;
@@ -59,6 +69,7 @@
       box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.4);
     }
 
+    /* Print media customization */
     @media print {
       body {
         background: white !important;
@@ -130,14 +141,21 @@
         <i data-lucide="history" class="w-4 h-4 text-emerald-400"></i>
       </button>
 
+      <!-- PWA Install Button -->
+      <button id="pwa-install-btn" onclick="installPWA()" class="hidden px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center gap-1 transition">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+        <span>Install</span>
+      </button>
+
       <!-- Shop Setup Button -->
-      <button id="btn-open-settings" onclick="openSettingsModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+      <button id="btn-open-settings" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
         <i data-lucide="store" class="w-3.5 h-3.5 text-emerald-400"></i>
         <span id="shop-name-badge">Setup Shop</span>
       </button>
     </div>
   </header>
 
+  <!-- Notification Toast Container -->
   <div id="toast-container" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-11/12 max-w-md pointer-events-none"></div>
 
   <main class="max-w-md mx-auto p-4 space-y-4">
@@ -221,8 +239,10 @@
         <span id="items-count" class="text-xs text-emerald-400 font-mono font-semibold bg-emerald-950/50 border border-emerald-800/40 px-2 py-0.5 rounded-full">1 Item</span>
       </div>
 
+      <!-- Dynamic Item List Container -->
       <div id="items-container" class="space-y-3"></div>
 
+      <!-- Add Item Button -->
       <button 
         type="button" 
         onclick="addItem()" 
@@ -232,7 +252,6 @@
       </button>
     </div>
 
-    <!-- Calculations Summary Card -->
     <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3 text-xs">
       
       <!-- GST Toggle Switch -->
@@ -280,7 +299,7 @@
         </div>
       </div>
 
-      <!-- Totals Summary -->
+      <!-- Live Calculated Totals Preview -->
       <div class="space-y-1.5 pt-1 text-slate-400">
         <div class="flex justify-between">
           <span>Subtotal</span>
@@ -307,6 +326,7 @@
     
     <div class="bg-slate-900 w-full max-w-2xl rounded-t-3xl sm:rounded-3xl border border-slate-800 max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
       
+      <!-- Modal Header -->
       <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
         <div class="flex items-center gap-2">
           <i id="modal-icon" data-lucide="file-text" class="w-5 h-5 text-emerald-400"></i>
@@ -317,6 +337,7 @@
         </button>
       </div>
 
+      <!-- Scrollable Document Preview Container -->
       <div class="p-4 overflow-y-auto flex-1 flex justify-center bg-slate-950/60" id="preview-wrapper">
         
         <div id="print-area">
@@ -392,6 +413,7 @@
           <!-- 2. PROFESSIONAL A4 INVOICE / QUOTATION VIEW -->
           <div id="view-a4" class="a4-paper p-6 sm:p-10 font-sans text-xs space-y-6 rounded-xl hidden">
             
+            <!-- Top Header -->
             <div class="flex justify-between items-start border-b border-slate-200 pb-6">
               <div class="space-y-2 max-w-[60%]">
                 <img id="a4-shop-logo" src="" alt="Logo" class="max-h-16 max-w-[180px] object-contain hidden mb-2" />
@@ -414,6 +436,7 @@
               </div>
             </div>
 
+            <!-- Client Info Meta Box -->
             <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex justify-between items-start">
               <div class="space-y-1">
                 <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">BILLED TO / CUSTOMER</span>
@@ -428,6 +451,7 @@
               </div>
             </div>
 
+            <!-- Items Table -->
             <div class="overflow-hidden border border-slate-200 rounded-xl">
               <table class="w-full text-left border-collapse text-xs">
                 <thead>
@@ -443,6 +467,7 @@
               </table>
             </div>
 
+            <!-- Calculation Totals Breakdown -->
             <div class="flex justify-between items-start pt-2">
               <div class="max-w-xs space-y-2 text-slate-500 text-[11px]">
                 <p class="font-bold text-slate-700">Terms & Conditions:</p>
@@ -473,6 +498,7 @@
               </div>
             </div>
 
+            <!-- Signature Line -->
             <div class="pt-8 flex justify-between items-end">
               <div class="text-[10px] text-slate-400">
                 <p>Thank you for your business!</p>
@@ -489,7 +515,6 @@
 
       </div>
 
-      <!-- Action Footer -->
       <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col gap-2">
         <div class="grid grid-cols-3 gap-2">
           <button onclick="shareToWhatsApp()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1 transition">
@@ -529,7 +554,6 @@
     </div>
   </div>
 
-  <!-- Settings Modal -->
   <div id="settings-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 w-full max-w-md rounded-3xl border border-slate-800 p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center border-b border-slate-800 pb-3">
@@ -606,6 +630,40 @@
   </div>
 
   <script>
+    /* PWA Installation Event Listener */
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const installBtn = document.getElementById('pwa-install-btn');
+      if (installBtn) installBtn.classList.remove('hidden');
+    });
+
+    function installPWA() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (installBtn) installBtn.classList.add('hidden');
+          }
+          deferredPrompt = null;
+        });
+      }
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        const swCode = `
+          self.addEventListener('install', (e) => self.skipWaiting());
+          self.addEventListener('activate', (e) => self.clients.claim());
+          self.addEventListener('fetch', (e) => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
+        `;
+        const blob = new Blob([swCode], { type: 'text/javascript' });
+        navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+      });
+    }
+
     let currentDocType = 'Invoice';
     let currencySymbol = '₹';
     let validityDays = 7;
@@ -664,12 +722,12 @@
     function showToast(message, type = 'info') {
       const toastContainer = document.getElementById('toast-container');
       const toast = document.createElement('div');
-      const bgColor = type === 'success' ? 'bg-emerald-600' : 'bg-slate-800';
+      const bgColor = type === 'success' ? 'bg-emerald-600' : (type === 'error' ? 'bg-rose-600' : 'bg-slate-800');
       toast.className = `${bgColor} text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-xl border border-white/10 flex items-center justify-between transition-all duration-300 opacity-0`;
       toast.innerHTML = `<span>${message}</span>`;
       toastContainer.appendChild(toast);
       setTimeout(() => toast.classList.remove('opacity-0'), 10);
-      setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.remove(), 300); }, 3000);
+      setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.remove(), 300); }, 3500);
     }
 
     function openSettingsModal() {
@@ -934,7 +992,6 @@
       const clientAddress = document.getElementById('client-address').value.trim();
       const paymentStatus = document.getElementById('payment-status-select').value;
 
-      // Save to History Register
       saveToHistory({ docNum, currentDocType, clientName, clientPhone, total: totals.grandTotal, date: new Date().toLocaleDateString('en-IN') });
 
       const viewThermal = document.getElementById('view-thermal');
@@ -971,7 +1028,6 @@
         document.getElementById('thermal-subtotal').innerText = `${currencySymbol}${totals.subtotal.toFixed(2)}`;
         document.getElementById('thermal-grandtotal').innerText = `${currencySymbol}${totals.grandTotal.toFixed(2)}`;
 
-        // UPI QR
         const qrContainer = document.getElementById('thermal-qr-container');
         if (shopProfile.upi) {
           document.getElementById('thermal-qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=${encodeURIComponent(shopProfile.upi)}%26pn=${encodeURIComponent(shopProfile.name)}%26am=${totals.grandTotal}`;
@@ -1031,7 +1087,6 @@
         document.getElementById('a4-subtotal').innerText = `${currencySymbol}${totals.subtotal.toFixed(2)}`;
         document.getElementById('a4-grandtotal').innerText = `${currencySymbol}${totals.grandTotal.toFixed(2)}`;
 
-        // A4 UPI Box
         const upiBox = document.getElementById('a4-upi-box');
         if (shopProfile.upi) {
           document.getElementById('a4-qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=${encodeURIComponent(shopProfile.upi)}%26pn=${encodeURIComponent(shopProfile.name)}%26am=${totals.grandTotal}`;
@@ -1104,7 +1159,7 @@
     function downloadAsImage() {
       const node = document.getElementById(currentDocType === 'Cash Bill' ? 'view-thermal' : 'view-a4');
       showToast("Generating image...", "info");
-      html2canvas(node, { scale: 3, backgroundColor: '#ffffff', useCORS: true }).then(canvas => {
+      html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(canvas => {
         const link = document.createElement('a');
         const docNum = document.getElementById('doc-number').value || '101';
         link.download = `${currentDocType}_${docNum}.png`;
@@ -1120,15 +1175,85 @@
       const clientName = document.getElementById('client-name').value.trim() || 'Valued Customer';
       const clientPhone = document.getElementById('client-phone').value.trim().replace(/[^0-9]/g, '');
 
-      let text = `*${currentDocType.toUpperCase()} #${docNum}*\n`;
-      text += `*From:* ${shopProfile.name}\n*To:* ${clientName}\n`;
-      text += `--------------------------\n`;
-      items.forEach(i => text += `• ${i.description || 'Item'} (${i.qty}x) = ${currencySymbol}${((i.qty||0)*(i.price||0)).toFixed(2)}\n`);
-      text += `--------------------------\n`;
-      text += `*Total Amount:* ${currencySymbol}${totals.grandTotal.toFixed(2)}\n\nThank you!`;
+      let summaryText = `*${currentDocType.toUpperCase()} #${docNum}*\n`;
+      summaryText += `*From:* ${shopProfile.name}\n*To:* ${clientName}\n`;
+      summaryText += `--------------------------\n`;
+      items.forEach(i => summaryText += `• ${i.description || 'Item'} (${i.qty}x) = ${currencySymbol}${((i.qty||0)*(i.price||0)).toFixed(2)}\n`);
+      summaryText += `--------------------------\n`;
+      summaryText += `*Total Amount:* ${currencySymbol}${totals.grandTotal.toFixed(2)}\n\nThank you for your business!`;
 
-      const url = clientPhone ? `https://wa.me/${clientPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
-      window.open(url, '_blank');
+      const node = document.getElementById(currentDocType === 'Cash Bill' ? 'view-thermal' : 'view-a4');
+      showToast("Preparing document image...", "info");
+
+      try {
+        // Generate high-resolution canvas image
+        const canvas = await html2canvas(node, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false
+        });
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            openWhatsAppChat(clientPhone, summaryText);
+            return;
+          }
+
+          const fileName = `${currentDocType}_${docNum}.png`;
+          const file = new File([blob], fileName, { type: 'image/png' });
+
+          // 1. Mobile Web Share API: Supported on Mobile Chrome/Safari with HTTPS
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({
+                files: [file],
+                title: `${currentDocType} #${docNum}`,
+                text: summaryText
+              });
+              showToast("Shared successfully!", "success");
+              return;
+            } catch (shareErr) {
+              if (shareErr.name === 'AbortError') return; // User cancelled share dialog
+            }
+          }
+
+          // 2. Clipboard + Download Fallback (For Desktop / Chrome Mobile Web without file share)
+          try {
+            // Attempt to write image to Clipboard so user can directly paste (Ctrl+V) in WhatsApp
+            if (navigator.clipboard && window.ClipboardItem) {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+              ]);
+              showToast("Image copied! Paste in WhatsApp chat.", "success");
+            }
+          } catch (clipErr) {
+            // Trigger PNG download if clipboard write is blocked by browser permissions
+            const downloadLink = document.createElement('a');
+            downloadLink.download = fileName;
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.click();
+            showToast("Bill image downloaded!", "info");
+          }
+
+          // Open WhatsApp Chat
+          setTimeout(() => {
+            openWhatsAppChat(clientPhone, summaryText);
+          }, 800);
+
+        }, 'image/png');
+
+      } catch (canvasErr) {
+        console.error("Canvas generation failed:", canvasErr);
+        openWhatsAppChat(clientPhone, summaryText);
+      }
+    }
+
+    function openWhatsAppChat(phone, text) {
+      const waUrl = phone 
+        ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
+        : `https://wa.me/?text=${encodeURIComponent(text)}`;
+      window.open(waUrl, '_blank');
     }
   </script>
 </body>
