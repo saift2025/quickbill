@@ -6,12 +6,14 @@
   <title>QuickBill - Invoice, Quotation & Thermal Receipt Generator</title>
   
   <!-- PWA Manifest Link -->
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="./manifest.json">
   <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="QuickBill">
+  <link rel="icon" href="./icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -889,7 +891,7 @@
 
       items.forEach((item, index) => {
         const itemCard = document.createElement('div');
-        itemCard.className = "bg-slate-900 p-3.5 rounded-2xl border border-slate-800 space-y-2.5 shadow-sm";
+        itemCard.className = "bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-sm";
         itemCard.innerHTML = `
           <div class="flex items-center gap-2">
             <input 
@@ -898,28 +900,28 @@
               placeholder="Item ${index + 1} Description" 
               value="${item.description}" 
               oninput="handleDescriptionInput(${item.id}, this.value)"
-              class="w-full bg-slate-950 text-sm font-semibold text-white p-2.5 rounded-xl border border-slate-800 outline-none focus:border-emerald-500/50"
+              class="w-full bg-slate-950 text-base font-semibold text-white p-3.5 rounded-xl border border-slate-800 outline-none focus:border-emerald-500/50"
             />
             ${items.length > 1 ? `
-              <button type="button" onclick="removeItem(${item.id})" class="p-2 text-slate-500 hover:text-red-400">
-                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              <button type="button" onclick="removeItem(${item.id})" class="p-2.5 text-slate-500 hover:text-red-400">
+                <i data-lucide="trash-2" class="w-5 h-5"></i>
               </button>
             ` : ''}
           </div>
 
-          <div class="grid grid-cols-2 gap-2">
+          <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Qty</label>
+              <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Qty</label>
               <div class="flex items-center bg-slate-950 rounded-xl border border-slate-800 p-1">
-                <button type="button" onclick="adjustQty(${item.id}, -1)" class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-sm">-</button>
-                <input type="number" value="${item.qty}" oninput="updateItem(${item.id}, 'qty', Number(this.value))" class="w-full bg-transparent text-center text-xs font-mono font-bold text-emerald-400 outline-none" />
-                <button type="button" onclick="adjustQty(${item.id}, 1)" class="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-sm">+</button>
+                <button type="button" onclick="adjustQty(${item.id}, -1)" class="w-11 h-11 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-lg">-</button>
+                <input type="number" value="${item.qty}" oninput="updateItem(${item.id}, 'qty', Number(this.value))" class="w-full bg-transparent text-center text-base font-mono font-bold text-emerald-400 outline-none" />
+                <button type="button" onclick="adjustQty(${item.id}, 1)" class="w-11 h-11 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-lg">+</button>
               </div>
             </div>
 
             <div>
-              <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Price (${currencySymbol})</label>
-              <input type="number" placeholder="0.00" value="${item.price}" oninput="updateItem(${item.id}, 'price', Number(this.value))" class="w-full bg-slate-950 text-xs font-mono font-bold text-right text-white p-2.5 rounded-xl border border-slate-800 outline-none" />
+              <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Price (${currencySymbol})</label>
+              <input type="number" placeholder="0.00" value="${item.price}" oninput="updateItem(${item.id}, 'price', Number(this.value))" class="w-full bg-slate-950 text-base font-mono font-bold text-right text-white p-3.5 rounded-xl border border-slate-800 outline-none" />
             </div>
           </div>
         `;
@@ -1170,17 +1172,8 @@
     }
 
     async function shareToWhatsApp() {
-      const totals = calculateTotals();
       const docNum = document.getElementById('doc-number').value || '101';
-      const clientName = document.getElementById('client-name').value.trim() || 'Valued Customer';
       const clientPhone = document.getElementById('client-phone').value.trim().replace(/[^0-9]/g, '');
-
-      let summaryText = `*${currentDocType.toUpperCase()} #${docNum}*\n`;
-      summaryText += `*From:* ${shopProfile.name}\n*To:* ${clientName}\n`;
-      summaryText += `--------------------------\n`;
-      items.forEach(i => summaryText += `• ${i.description || 'Item'} (${i.qty}x) = ${currencySymbol}${((i.qty||0)*(i.price||0)).toFixed(2)}\n`);
-      summaryText += `--------------------------\n`;
-      summaryText += `*Total Amount:* ${currencySymbol}${totals.grandTotal.toFixed(2)}\n\nThank you for your business!`;
 
       const node = document.getElementById(currentDocType === 'Cash Bill' ? 'view-thermal' : 'view-a4');
       showToast("Preparing document image...", "info");
@@ -1196,20 +1189,21 @@
 
         canvas.toBlob(async (blob) => {
           if (!blob) {
-            openWhatsAppChat(clientPhone, summaryText);
+            showToast("Couldn't generate the image. Please try again.", "error");
             return;
           }
 
           const fileName = `${currentDocType}_${docNum}.png`;
           const file = new File([blob], fileName, { type: 'image/png' });
 
-          // 1. Mobile Web Share API: Supported on Mobile Chrome/Safari with HTTPS
+          // 1. Mobile Web Share API: Supported on Mobile Chrome/Safari with HTTPS.
+          // Share ONLY the image file (no text) so WhatsApp receives the bill as
+          // a picture, not a text message.
           if (navigator.canShare && navigator.canShare({ files: [file] })) {
             try {
               await navigator.share({
                 files: [file],
-                title: `${currentDocType} #${docNum}`,
-                text: summaryText
+                title: `${currentDocType} #${docNum}`
               });
               showToast("Shared successfully!", "success");
               return;
@@ -1218,42 +1212,60 @@
             }
           }
 
-          // 2. Clipboard + Download Fallback (For Desktop / Chrome Mobile Web without file share)
+          // 2. Fallback for Desktop / browsers without native file sharing:
+          // put the image on the clipboard (or download it) and open the
+          // WhatsApp chat with NO pre-filled text, so the user just pastes
+          // (Ctrl+V) or attaches the image itself — never a text-only message.
+          let imageReady = false;
           try {
-            // Attempt to write image to Clipboard so user can directly paste (Ctrl+V) in WhatsApp
             if (navigator.clipboard && window.ClipboardItem) {
               await navigator.clipboard.write([
                 new ClipboardItem({ 'image/png': blob })
               ]);
-              showToast("Image copied! Paste in WhatsApp chat.", "success");
+              imageReady = true;
+              showToast("Image copied! Paste it (Ctrl+V) into the WhatsApp chat.", "success");
             }
           } catch (clipErr) {
-            // Trigger PNG download if clipboard write is blocked by browser permissions
+            // Clipboard blocked by browser permissions — fall back to download.
+          }
+
+          if (!imageReady) {
             const downloadLink = document.createElement('a');
             downloadLink.download = fileName;
             downloadLink.href = URL.createObjectURL(blob);
             downloadLink.click();
-            showToast("Bill image downloaded!", "info");
+            showToast("Bill image downloaded — attach it in WhatsApp.", "info");
           }
 
-          // Open WhatsApp Chat
+          // Open the WhatsApp chat itself (no text), ready for the image.
           setTimeout(() => {
-            openWhatsAppChat(clientPhone, summaryText);
+            openWhatsAppChat(clientPhone);
           }, 800);
 
         }, 'image/png');
 
       } catch (canvasErr) {
         console.error("Canvas generation failed:", canvasErr);
-        openWhatsAppChat(clientPhone, summaryText);
+        showToast("Couldn't generate the image. Please try again.", "error");
       }
     }
 
-    function openWhatsAppChat(phone, text) {
+    function openWhatsAppChat(phone) {
+      // No `text` param here on purpose — we only ever want the bill IMAGE
+      // to reach the chat, not a pre-filled text summary.
       const waUrl = phone 
-        ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
-        : `https://wa.me/?text=${encodeURIComponent(text)}`;
+        ? `https://wa.me/${phone}`
+        : `https://wa.me/`;
       window.open(waUrl, '_blank');
+    }
+
+    // Register service worker: required for Chrome/Android to treat QuickBill
+    // as a full installable app ("Install app") instead of a plain
+    // "Add to Home screen" shortcut.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW registration failed:', err));
+      });
     }
   </script>
 </body>
