@@ -1028,6 +1028,20 @@
         `).join('');
 
         document.getElementById('thermal-subtotal').innerText = `${currencySymbol}${totals.subtotal.toFixed(2)}`;
+
+        const thermalTaxRow = document.getElementById('thermal-tax-row');
+        if (isTaxEnabled && totals.taxAmount > 0) {
+          document.getElementById('thermal-tax-pct').innerText = totals.taxRate;
+          document.getElementById('thermal-tax').innerText = `+${currencySymbol}${totals.taxAmount.toFixed(2)}`;
+          thermalTaxRow.classList.remove('hidden');
+        } else thermalTaxRow.classList.add('hidden');
+
+        const thermalDiscountRow = document.getElementById('thermal-discount-row');
+        if (totals.discountAmount > 0) {
+          document.getElementById('thermal-discount').innerText = `-${currencySymbol}${totals.discountAmount.toFixed(2)}`;
+          thermalDiscountRow.classList.remove('hidden');
+        } else thermalDiscountRow.classList.add('hidden');
+
         document.getElementById('thermal-grandtotal').innerText = `${currencySymbol}${totals.grandTotal.toFixed(2)}`;
 
         const qrContainer = document.getElementById('thermal-qr-container');
@@ -1087,6 +1101,20 @@
         `).join('');
 
         document.getElementById('a4-subtotal').innerText = `${currencySymbol}${totals.subtotal.toFixed(2)}`;
+
+        const a4TaxRow = document.getElementById('a4-tax-row');
+        if (isTaxEnabled && totals.taxAmount > 0) {
+          document.getElementById('a4-tax-pct').innerText = totals.taxRate;
+          document.getElementById('a4-tax').innerText = `+${currencySymbol}${totals.taxAmount.toFixed(2)}`;
+          a4TaxRow.classList.remove('hidden');
+        } else a4TaxRow.classList.add('hidden');
+
+        const a4DiscountRow = document.getElementById('a4-discount-row');
+        if (totals.discountAmount > 0) {
+          document.getElementById('a4-discount').innerText = `-${currencySymbol}${totals.discountAmount.toFixed(2)}`;
+          a4DiscountRow.classList.remove('hidden');
+        } else a4DiscountRow.classList.add('hidden');
+
         document.getElementById('a4-grandtotal').innerText = `${currencySymbol}${totals.grandTotal.toFixed(2)}`;
 
         const upiBox = document.getElementById('a4-upi-box');
