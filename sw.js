@@ -1,47 +1,47 @@
-// QuickBill Service Worker
-// A service worker with a fetch handler is required by Chrome/Android
-// for the "Install app" prompt to appear (otherwise it only offers
-// "Add to Home screen", which creates a plain browser-shortcut icon).
-
-const CACHE_NAME = 'quickbill-cache-v1';
-const CORE_ASSETS = [
-  './index.html',
-  './manifest.json',
-  './icon-192.png',
-  './icon-512.png'
+const CACHE = "lot-ledger-v1";
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./style.css",
+  "./app.js",
+  "./manifest.json",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png"
 ];
 
-// Cache core app files on install so the app can also open offline.
-self.addEventListener('install', (event) => {
+self.addEventListener("install", (e) => {
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS)).catch(() => {})
-  );
 });
 
-// Clean up old caches on activate.
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
+self.addEventListener("activate", (e) => {
+  e.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
+      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
     )
   );
   self.clients.claim();
 });
 
-// Network-first for navigation/HTML, cache-first for everything else,
-// falling back to cache when offline.
-self.addEventListener('fetch', (event) => {
-  const { request } = event;
-  if (request.method !== 'GET') return;
-
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
-        return response;
-      })
-      .catch(() => caches.match(request).then((cached) => cached || caches.match('./index.html')))
+self.addEventListener("fetch", (e) => {
+  const url = new URL(e.request.url);
+  // Never cache API calls to Google Apps Script — always go to network
+  if (url.hostname.includes("script.google.com")) {
+    e.respondWith(fetch(e.request).catch(() => new Response(JSON.stringify({ error: "offline" }))));
+    return;
+  }
+  e.respondWith(
+    caches.match(e.request).then((cached) => {
+      const fetchPromise = fetch(e.request)
+        .then((res) => {
+          if (res && res.ok && e.request.method === "GET") {
+            const clone = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => cached);
+      return cached || fetchPromise;
+    })
   );
 });
