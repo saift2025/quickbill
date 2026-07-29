@@ -1,0 +1,18 @@
+{
+"short_name": "QuickBill",
+"name": "QuickBill - Invoice & Receipt Generator",
+"icons": [
+{
+"src": "data:image/svg+xml;utf8,",
+"type": "image/svg+xml",
+"sizes": "192x192 512x512",
+"purpose": "any maskable"
+}
+],
+"start_url": "./index.html",
+"background_color": "#0f172a",
+"theme_color": "#0f172a",
+"display": "standalone",
+"orientation": "portrait",
+"scope": "./"
+}

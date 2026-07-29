@@ -1,0 +1,1300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>QuickBill - Invoice, Quotation & Thermal Receipt Generator</title>
+  
+  <!-- PWA Manifest Link -->
+  <link rel="manifest" href="./manifest.json">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="QuickBill">
+  <link rel="icon" href="./icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- html2canvas CDN for image generation -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <!-- html2pdf.js CDN for PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  
+  <!-- Google Fonts: Inter & Space Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    .font-thermal {
+      font-family: 'Space Mono', monospace;
+    }
+    
+    /* Thermal paper cut effect for Cash Bill */
+    .thermal-paper {
+      background-color: #ffffff;
+      color: #111111;
+      position: relative;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    .thermal-paper::after {
+      content: "";
+      position: absolute;
+      bottom: -8px;
+      left: 0;
+      width: 100%;
+      height: 8px;
+      background: radial-gradient(circle, transparent, transparent 50%, #ffffff 50%, #ffffff 100%);
+      background-size: 12px 12px;
+    }
+
+    /* Professional A4 Paper Simulation */
+    .a4-paper {
+      background-color: #ffffff;
+      color: #0f172a;
+      width: 100%;
+      max-width: 650px;
+      min-height: 842px;
+      box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Print media customization */
+    @media print {
+      body {
+        background: white !important;
+        color: black !important;
+      }
+      header, main, #settings-modal, #history-modal, .no-print, .sticky, #toast-container, button {
+        display: none !important;
+      }
+      #doc-modal {
+        position: static !important;
+        background: transparent !important;
+        display: block !important;
+        padding: 0 !important;
+      }
+      #doc-modal > div {
+        max-width: 100% !important;
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+      }
+      #preview-wrapper {
+        padding: 0 !important;
+        background: transparent !important;
+        overflow: visible !important;
+      }
+      #print-area {
+        position: static !important;
+        width: 100% !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+      }
+      .a4-paper, .thermal-paper {
+        box-shadow: none !important;
+        margin: 0 auto !important;
+        page-break-inside: avoid !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen pb-32 selection:bg-emerald-500 selection:text-white">
+
+  <!-- Autocomplete Suggestions Datalist -->
+  <datalist id="catalog-suggestions"></datalist>
+
+  <header class="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-2.5">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 flex items-center justify-center text-slate-950 shadow-lg shadow-emerald-500/20 font-black">
+        ⚡
+      </div>
+      <div>
+        <h1 class="font-bold text-base text-white leading-none">QuickBill</h1>
+        <span class="text-[10px] text-emerald-400 font-medium tracking-wide uppercase">Smart Billing Engine</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-1.5">
+      <!-- Currency Switcher -->
+      <select id="currency-select" onchange="setCurrency(this.value)" class="bg-slate-800 text-xs font-bold text-emerald-400 px-2 py-1.5 rounded-xl border border-slate-700 outline-none cursor-pointer">
+        <option value="₹">₹ INR</option>
+        <option value="$">$ USD</option>
+        <option value="€">€ EUR</option>
+        <option value="£">£ GBP</option>
+        <option value="AED">AED</option>
+        <option value="SAR">SAR</option>
+      </select>
+
+      <!-- History Modal Trigger -->
+      <button id="btn-open-history" onclick="openHistoryModal()" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1 transition" title="Saved History">
+        <i data-lucide="history" class="w-4 h-4 text-emerald-400"></i>
+      </button>
+
+      <!-- PWA Install Button -->
+      <button id="pwa-install-btn" onclick="installPWA()" class="hidden px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold flex items-center gap-1 transition">
+        <i data-lucide="download" class="w-3.5 h-3.5"></i>
+        <span>Install</span>
+      </button>
+
+      <!-- Shop Setup Button -->
+      <button id="btn-open-settings" onclick="openSettingsModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition">
+        <i data-lucide="store" class="w-3.5 h-3.5 text-emerald-400"></i>
+        <span id="shop-name-badge">Setup Shop</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Notification Toast Container -->
+  <div id="toast-container" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-2 w-11/12 max-w-md pointer-events-none"></div>
+
+  <main class="max-w-md mx-auto p-4 space-y-4">
+
+    <!-- Document Type Switcher -->
+    <div class="bg-slate-900 p-1.5 rounded-2xl border border-slate-800 flex gap-1">
+      <button type="button" onclick="setDocType('Invoice')" id="type-Invoice" class="doc-type-btn flex-1 py-2.5 rounded-xl text-xs font-bold transition text-center bg-emerald-500 text-slate-950 shadow">
+        Invoice (A4)
+      </button>
+      <button type="button" onclick="setDocType('Quotation')" id="type-Quotation" class="doc-type-btn flex-1 py-2.5 rounded-xl text-xs font-bold transition text-center text-slate-400 hover:text-white">
+        Quotation (A4)
+      </button>
+      <button type="button" onclick="setDocType('Cash Bill')" id="type-Cash Bill" class="doc-type-btn flex-1 py-2.5 rounded-xl text-xs font-bold transition text-center text-slate-400 hover:text-white">
+        Cash Bill (Thermal)
+      </button>
+    </div>
+
+    <!-- Client / Customer Details Card -->
+    <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-sm">
+      <div class="flex justify-between items-center text-xs text-slate-400 font-semibold uppercase tracking-wider">
+        <span class="flex items-center gap-1"><i data-lucide="user" class="w-3.5 h-3.5 text-emerald-400"></i> Customer Details</span>
+        <div class="flex items-center gap-1 bg-slate-950 px-2 py-1 rounded-lg border border-slate-800">
+          <span class="text-[10px] text-slate-500">No:</span>
+          <input type="text" id="doc-number" value="101" class="w-16 bg-transparent text-white font-mono text-right outline-none font-bold text-xs" />
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <input 
+          type="text" 
+          id="client-name" 
+          placeholder="Customer / Business Name" 
+          class="w-full bg-slate-950 text-sm text-white placeholder-slate-500 p-3 rounded-xl border border-slate-800 outline-none focus:border-emerald-500/50 transition"
+        />
+        <input 
+          type="tel" 
+          id="client-phone" 
+          placeholder="WhatsApp / Phone Number" 
+          class="w-full bg-slate-950 text-sm text-white placeholder-slate-500 p-3 rounded-xl border border-slate-800 outline-none focus:border-emerald-500/50 transition"
+        />
+        <input 
+          type="text" 
+          id="client-address" 
+          placeholder="Customer Address (Optional)" 
+          class="w-full bg-slate-950 text-xs text-white placeholder-slate-500 p-2.5 rounded-xl border border-slate-800 outline-none focus:border-emerald-500/50 transition"
+        />
+
+        <!-- Payment Status Switcher -->
+        <div class="flex justify-between items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800 pt-2">
+          <span class="text-xs text-slate-400 font-semibold flex items-center gap-1.5">
+            <i data-lucide="credit-card" class="w-4 h-4 text-emerald-400"></i> Payment Status
+          </span>
+          <select id="payment-status-select" class="bg-slate-900 text-emerald-400 text-xs font-bold p-1.5 rounded-lg border border-slate-800 outline-none cursor-pointer">
+            <option value="PAID" selected>PAID</option>
+            <option value="PENDING">PENDING</option>
+            <option value="PARTIAL">PARTIAL</option>
+          </select>
+        </div>
+
+        <!-- Quotation Validity Option -->
+        <div id="validity-container" class="hidden flex justify-between items-center bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+          <span class="text-xs text-slate-300 font-semibold flex items-center gap-1.5">
+            <i data-lucide="calendar" class="w-4 h-4 text-emerald-400"></i> Quotation Validity
+          </span>
+          <select id="validity-select" onchange="updateValidityDays(this.value)" class="bg-slate-900 text-emerald-400 text-xs font-bold p-1.5 rounded-lg border border-slate-800 outline-none cursor-pointer">
+            <option value="7" selected>7 Days</option>
+            <option value="15">15 Days</option>
+            <option value="30">30 Days</option>
+            <option value="60">60 Days</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Items Section -->
+    <div class="space-y-3">
+      <div class="flex justify-between items-center px-1">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+          <i data-lucide="shopping-bag" class="w-3.5 h-3.5 text-emerald-400"></i> Items / Services
+        </span>
+        <span id="items-count" class="text-xs text-emerald-400 font-mono font-semibold bg-emerald-950/50 border border-emerald-800/40 px-2 py-0.5 rounded-full">1 Item</span>
+      </div>
+
+      <!-- Dynamic Item List Container -->
+      <div id="items-container" class="space-y-3"></div>
+
+      <!-- Add Item Button -->
+      <button 
+        type="button" 
+        onclick="addItem()" 
+        class="w-full py-3 bg-slate-900 hover:bg-slate-850 active:scale-[0.99] border border-dashed border-slate-700 rounded-2xl text-emerald-400 text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm"
+      >
+        <i data-lucide="plus-circle" class="w-4 h-4"></i> Add Another Item
+      </button>
+    </div>
+
+    <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3 text-xs">
+      
+      <!-- GST Toggle Switch -->
+      <div class="flex justify-between items-center py-1 border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="percent" class="w-4 h-4 text-emerald-400"></i>
+          <div>
+            <span class="font-semibold text-slate-200 block">Apply GST / Tax</span>
+            <span class="text-[10px] text-slate-500 block">Optional tax addition</span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <input 
+            type="number" 
+            id="tax-rate" 
+            value="18" 
+            placeholder="%" 
+            oninput="calculateTotals()"
+            class="w-12 bg-slate-950 text-emerald-400 text-center p-1.5 rounded-lg border border-slate-800 font-bold outline-none disabled:opacity-30" 
+          />
+          <span class="text-slate-400 font-semibold">%</span>
+          
+          <label class="relative inline-flex items-center cursor-pointer ml-1">
+            <input type="checkbox" id="tax-toggle" onchange="toggleTaxSetting()" class="sr-only peer">
+            <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Discount Input -->
+      <div class="flex justify-between items-center py-1 border-b border-slate-800 pb-3">
+        <span class="text-slate-400 flex items-center gap-1.5 font-medium">
+          <i data-lucide="tag" class="w-3.5 h-3.5 text-amber-400"></i> Discount (Flat Amount)
+        </span>
+        <div class="flex items-center gap-1">
+          <span class="currency-symbol text-slate-400 font-bold">₹</span>
+          <input 
+            type="number" 
+            id="discount-amount" 
+            value="0" 
+            oninput="calculateTotals()" 
+            class="w-20 bg-slate-950 text-white text-right p-1.5 rounded-lg border border-slate-800 font-mono font-semibold outline-none focus:border-emerald-500/50" 
+          />
+        </div>
+      </div>
+
+      <!-- Live Calculated Totals Preview -->
+      <div class="space-y-1.5 pt-1 text-slate-400">
+        <div class="flex justify-between">
+          <span>Subtotal</span>
+          <span id="summary-subtotal" class="font-mono text-slate-200">₹0.00</span>
+        </div>
+        <div id="row-tax-summary" class="flex justify-between text-emerald-400 hidden">
+          <span>GST Tax</span>
+          <span id="summary-tax" class="font-mono">+₹0.00</span>
+        </div>
+        <div id="row-discount-summary" class="flex justify-between text-amber-400 hidden">
+          <span>Discount</span>
+          <span id="summary-discount" class="font-mono">-₹0.00</span>
+        </div>
+        <div class="flex justify-between text-sm font-extrabold text-white pt-2 border-t border-slate-800">
+          <span>Grand Total</span>
+          <span id="summary-grandtotal" class="font-mono text-emerald-400 text-base">₹0.00</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <div id="doc-modal" class="fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-md hidden flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 transition-all">
+    
+    <div class="bg-slate-900 w-full max-w-2xl rounded-t-3xl sm:rounded-3xl border border-slate-800 max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+      
+      <!-- Modal Header -->
+      <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-900">
+        <div class="flex items-center gap-2">
+          <i id="modal-icon" data-lucide="file-text" class="w-5 h-5 text-emerald-400"></i>
+          <span id="modal-title-text" class="font-bold text-sm text-white">Document Preview</span>
+        </div>
+        <button onclick="closeDocModal()" class="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Scrollable Document Preview Container -->
+      <div class="p-4 overflow-y-auto flex-1 flex justify-center bg-slate-950/60" id="preview-wrapper">
+        
+        <div id="print-area">
+
+          <!-- 1. THERMAL CASH RECEIPT VIEW -->
+          <div id="view-thermal" class="thermal-paper w-[280px] p-4 text-slate-900 font-thermal text-xs space-y-3 rounded-t-sm hidden">
+            
+            <div class="text-center space-y-1 pb-2 border-b-2 border-dashed border-slate-400">
+              <img id="thermal-shop-logo" src="" alt="Logo" class="max-h-12 max-w-[100px] mx-auto mb-1 object-contain filter grayscale contrast-125 hidden" />
+              <h2 id="thermal-shop-name" class="font-bold text-sm uppercase tracking-wider text-black">SHOP NAME</h2>
+              <p id="thermal-shop-address" class="text-[10px] leading-tight text-slate-700"></p>
+              <p id="thermal-shop-phone" class="text-[10px] text-slate-700"></p>
+              <p id="thermal-shop-gstin" class="text-[10px] text-slate-700 hidden"></p>
+            </div>
+
+            <div class="text-[10px] space-y-0.5 border-b border-slate-300 pb-2">
+              <div class="flex justify-between font-bold">
+                <span>CASH BILL</span>
+                <span id="thermal-doc-num">#101</span>
+              </div>
+              <div class="flex justify-between text-slate-600">
+                <span>Date: <span id="thermal-date"></span></span>
+                <span id="thermal-time"></span>
+              </div>
+              <div id="thermal-client-box" class="pt-1 text-slate-800 hidden">
+                <span class="block">Customer: <strong id="thermal-client-name"></strong></span>
+                <span id="thermal-client-phone-wrap" class="block text-slate-600">Ph: <span id="thermal-client-phone"></span></span>
+              </div>
+            </div>
+
+            <table class="w-full text-left text-[11px]">
+              <thead>
+                <tr class="border-b border-dashed border-slate-400 text-black">
+                  <th class="py-1">ITEM</th>
+                  <th class="py-1 text-center">QTY</th>
+                  <th class="py-1 text-right">AMT</th>
+                </tr>
+              </thead>
+              <tbody id="thermal-items-body" class="divide-y divide-dotted divide-slate-300"></tbody>
+            </table>
+
+            <div class="border-t-2 border-dashed border-slate-400 pt-2 space-y-1 text-[11px]">
+              <div class="flex justify-between">
+                <span>Subtotal:</span>
+                <span id="thermal-subtotal" class="font-bold">₹0.00</span>
+              </div>
+              <div id="thermal-tax-row" class="flex justify-between text-slate-700 hidden">
+                <span>GST Tax (<span id="thermal-tax-pct">18</span>%):</span>
+                <span id="thermal-tax">+₹0.00</span>
+              </div>
+              <div id="thermal-discount-row" class="flex justify-between text-slate-700 hidden">
+                <span>Discount:</span>
+                <span id="thermal-discount">-₹0.00</span>
+              </div>
+              <div class="flex justify-between text-sm font-extrabold border-t border-slate-900 pt-1 text-black">
+                <span>TOTAL:</span>
+                <span id="thermal-grandtotal">₹0.00</span>
+              </div>
+            </div>
+
+            <!-- Thermal UPI QR Container -->
+            <div id="thermal-qr-container" class="text-center pt-2 border-t border-dashed border-slate-300 hidden">
+              <img id="thermal-qr-code" src="" class="w-20 h-20 mx-auto" alt="Pay QR" />
+              <p class="text-[9px] text-slate-600 font-bold mt-1">SCAN TO PAY VIA UPI</p>
+            </div>
+
+            <div class="text-center pt-2 border-t border-dashed border-slate-300 text-[10px] text-slate-600 space-y-0.5">
+              <p class="font-bold text-slate-800">*** THANK YOU ***</p>
+            </div>
+
+          </div>
+
+          <!-- 2. PROFESSIONAL A4 INVOICE / QUOTATION VIEW -->
+          <div id="view-a4" class="a4-paper p-6 sm:p-10 font-sans text-xs space-y-6 rounded-xl hidden">
+            
+            <!-- Top Header -->
+            <div class="flex justify-between items-start border-b border-slate-200 pb-6">
+              <div class="space-y-2 max-w-[60%]">
+                <img id="a4-shop-logo" src="" alt="Logo" class="max-h-16 max-w-[180px] object-contain hidden mb-2" />
+                <h1 id="a4-shop-name" class="font-extrabold text-xl text-slate-900 tracking-tight">MY BUSINESS NAME</h1>
+                <p id="a4-shop-address" class="text-slate-600 leading-normal text-xs whitespace-pre-line"></p>
+                <div class="text-slate-600 text-xs space-y-0.5 pt-1">
+                  <p id="a4-shop-phone-wrap" class="hidden"><strong>Phone:</strong> <span id="a4-shop-phone"></span></p>
+                  <p id="a4-shop-gstin-wrap" class="hidden"><strong>GSTIN:</strong> <span id="a4-shop-gstin"></span></p>
+                </div>
+              </div>
+
+              <div class="text-right space-y-1">
+                <div class="flex items-center justify-end gap-2">
+                  <span id="a4-status-badge" class="px-2.5 py-0.5 font-black text-[10px] uppercase rounded-md border border-emerald-500 text-emerald-700 bg-emerald-50">PAID</span>
+                  <span id="a4-doc-type" class="inline-block px-3 py-1 bg-slate-900 text-white font-extrabold text-xs uppercase tracking-wider rounded-lg">INVOICE</span>
+                </div>
+                <p class="text-slate-500 font-mono text-sm pt-1">#<span id="a4-doc-num" class="font-bold text-slate-800">101</span></p>
+                <p class="text-slate-600 text-xs">Date: <strong id="a4-doc-date"></strong></p>
+                <p id="a4-validity-wrap" class="text-emerald-700 font-semibold text-xs hidden">Valid Until: <strong id="a4-validity-date"></strong></p>
+              </div>
+            </div>
+
+            <!-- Client Info Meta Box -->
+            <div class="bg-slate-50 border border-slate-200 p-4 rounded-xl flex justify-between items-start">
+              <div class="space-y-1">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">BILLED TO / CUSTOMER</span>
+                <p id="a4-client-name" class="font-bold text-sm text-slate-900">Valued Customer</p>
+                <p id="a4-client-phone-wrap" class="text-slate-600 hidden">Ph: <span id="a4-client-phone"></span></p>
+                <p id="a4-client-address-wrap" class="text-slate-600 hidden whitespace-pre-line max-w-xs"></p>
+              </div>
+              <div id="a4-upi-box" class="text-right text-slate-500 space-y-1 hidden">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">SCAN TO PAY</span>
+                <img id="a4-qr-code" src="" class="w-16 h-16 ml-auto border border-slate-200 rounded p-1 bg-white" alt="UPI QR" />
+                <p id="a4-upi-id" class="text-[10px] font-mono font-bold text-slate-700"></p>
+              </div>
+            </div>
+
+            <!-- Items Table -->
+            <div class="overflow-hidden border border-slate-200 rounded-xl">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-900 text-white font-bold uppercase text-[10px] tracking-wider">
+                    <th class="py-3 px-4">#</th>
+                    <th class="py-3 px-4">Item & Description</th>
+                    <th class="py-3 px-4 text-center">Qty</th>
+                    <th class="py-3 px-4 text-right">Price</th>
+                    <th class="py-3 px-4 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody id="a4-items-body" class="divide-y divide-slate-200 text-slate-800"></tbody>
+              </table>
+            </div>
+
+            <!-- Calculation Totals Breakdown -->
+            <div class="flex justify-between items-start pt-2">
+              <div class="max-w-xs space-y-2 text-slate-500 text-[11px]">
+                <p class="font-bold text-slate-700">Terms & Conditions:</p>
+                <ul id="a4-terms-list" class="list-disc list-inside space-y-0.5 leading-relaxed">
+                  <li>Payment is due upon receipt.</li>
+                  <li>Goods once sold will not be taken back or exchanged.</li>
+                  <li>This is a computer generated document.</li>
+                </ul>
+              </div>
+
+              <div class="w-56 space-y-2 bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs">
+                <div class="flex justify-between text-slate-600">
+                  <span>Subtotal:</span>
+                  <span id="a4-subtotal" class="font-mono font-semibold text-slate-900">₹0.00</span>
+                </div>
+                <div id="a4-tax-row" class="flex justify-between text-slate-600 hidden">
+                  <span>GST (<span id="a4-tax-pct">18</span>%):</span>
+                  <span id="a4-tax" class="font-mono text-emerald-700">+₹0.00</span>
+                </div>
+                <div id="a4-discount-row" class="flex justify-between text-slate-600 hidden">
+                  <span>Discount:</span>
+                  <span id="a4-discount" class="font-mono text-amber-700">-₹0.00</span>
+                </div>
+                <div class="flex justify-between text-sm font-extrabold border-t border-slate-300 pt-2 text-slate-900">
+                  <span>Grand Total:</span>
+                  <span id="a4-grandtotal" class="font-mono text-emerald-600">₹0.00</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Signature Line -->
+            <div class="pt-8 flex justify-between items-end">
+              <div class="text-[10px] text-slate-400">
+                <p>Thank you for your business!</p>
+              </div>
+              <div class="text-center space-y-8">
+                <div class="border-b border-slate-400 w-36 mx-auto"></div>
+                <p class="text-[11px] font-semibold text-slate-700">Authorized Signatory</p>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <div class="p-3 bg-slate-900 border-t border-slate-800 flex flex-col gap-2">
+        <div class="grid grid-cols-3 gap-2">
+          <button onclick="shareToWhatsApp()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1 transition">
+            <i data-lucide="share-2" class="w-3.5 h-3.5"></i> WhatsApp
+          </button>
+          <button onclick="downloadPDF()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1 transition">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> PDF
+          </button>
+          <button onclick="downloadAsImage()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1 transition">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i> Image
+          </button>
+        </div>
+        <button onclick="window.print()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1 transition">
+          <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print Document
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Saved Invoices History Modal -->
+  <div id="history-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 w-full max-w-md rounded-3xl border border-slate-800 p-5 space-y-4 shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="history" class="w-5 h-5 text-emerald-400"></i>
+          <h2 class="font-bold text-base text-white">Bill History Register</h2>
+        </div>
+        <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <input type="text" id="history-search" oninput="filterHistory(this.value)" placeholder="Search by customer or bill #..." class="w-full bg-slate-950 text-xs text-white p-2.5 rounded-xl border border-slate-800 outline-none" />
+
+      <div id="history-list" class="flex-1 overflow-y-auto space-y-2 pr-1"></div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 w-full max-w-md rounded-3xl border border-slate-800 p-5 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-2">
+          <i data-lucide="building-2" class="w-5 h-5 text-emerald-400"></i>
+          <h2 class="font-bold text-base text-white">Shop Profile & Settings</h2>
+        </div>
+        <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Business Logo</label>
+          <div class="flex items-center gap-3 bg-slate-950 p-2.5 rounded-xl border border-slate-800">
+            <div id="logo-preview-container" class="w-12 h-12 bg-slate-900 border border-slate-700 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+              <i data-lucide="image" id="logo-placeholder-icon" class="w-5 h-5 text-slate-600"></i>
+              <img id="setup-logo-preview" class="w-full h-full object-contain hidden" alt="Preview" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <input type="file" id="setup-shop-logo" accept="image/*" onchange="handleLogoUpload(event)" class="hidden" />
+              <label for="setup-shop-logo" class="inline-block px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-semibold cursor-pointer transition">
+                Choose Logo
+              </label>
+              <button type="button" id="btn-remove-logo" onclick="removeShopLogo()" class="ml-2 text-xs text-red-400 hover:underline hidden">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Shop Name *</label>
+          <input type="text" id="setup-shop-name" placeholder="e.g. Saifullah Stores" class="w-full bg-slate-950 text-white p-3 rounded-xl border border-slate-800 outline-none focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Address / Location</label>
+          <input type="text" id="setup-shop-address" placeholder="e.g. Main Market, Shop #12" class="w-full bg-slate-950 text-white p-3 rounded-xl border border-slate-800 outline-none focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">Phone Number</label>
+          <input type="tel" id="setup-shop-phone" placeholder="e.g. +91 9876543210" class="w-full bg-slate-950 text-white p-3 rounded-xl border border-slate-800 outline-none focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">GSTIN (Optional)</label>
+          <input type="text" id="setup-shop-gstin" placeholder="e.g. 29ABCDE1234F1ZH" class="w-full bg-slate-950 text-white p-3 rounded-xl border border-slate-800 outline-none focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="block text-slate-300 font-semibold mb-1">UPI ID for Payment QR Code (Optional)</label>
+          <input type="text" id="setup-shop-upi" placeholder="e.g. shopname@upi" class="w-full bg-slate-950 text-white p-3 rounded-xl border border-slate-800 outline-none focus:border-emerald-500" />
+        </div>
+
+        <div class="border-t border-slate-800 pt-3">
+          <div class="flex justify-between items-center mb-2">
+            <label class="text-slate-300 font-bold">Saved Catalog Items</label>
+            <span id="catalog-count-badge" class="text-[10px] text-emerald-400 font-bold">0 Items</span>
+          </div>
+          <div id="settings-catalog-list" class="max-h-28 overflow-y-auto space-y-1 bg-slate-950 p-2 rounded-xl border border-slate-800 text-[11px]"></div>
+        </div>
+      </div>
+
+      <button onclick="saveShopProfile()" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-500/20">
+        Save Profile & Settings
+      </button>
+    </div>
+  </div>
+
+  <div class="fixed bottom-0 inset-x-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 max-w-md mx-auto flex items-center gap-2 z-20">
+    <button 
+      onclick="generateDocument()" 
+      class="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black py-3.5 px-4 rounded-2xl text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition active:scale-95"
+    >
+      <i data-lucide="file-check" class="w-4 h-4"></i> Generate Document
+    </button>
+  </div>
+
+  <script>
+    /* PWA Installation Event Listener */
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const installBtn = document.getElementById('pwa-install-btn');
+      if (installBtn) installBtn.classList.remove('hidden');
+    });
+
+    function installPWA() {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+          if (choiceResult.outcome === 'accepted') {
+            const installBtn = document.getElementById('pwa-install-btn');
+            if (installBtn) installBtn.classList.add('hidden');
+          }
+          deferredPrompt = null;
+        });
+      }
+    }
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        const swCode = `
+          self.addEventListener('install', (e) => self.skipWaiting());
+          self.addEventListener('activate', (e) => self.clients.claim());
+          self.addEventListener('fetch', (e) => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
+        `;
+        const blob = new Blob([swCode], { type: 'text/javascript' });
+        navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+      });
+    }
+
+    let currentDocType = 'Invoice';
+    let currencySymbol = '₹';
+    let validityDays = 7;
+    let items = [{ id: Date.now(), description: 'Sample Service / Item', qty: 1, price: 500 }];
+    let isTaxEnabled = false;
+
+    let catalog = [
+      { description: 'Sample Service / Item', price: 500 },
+      { description: 'Delivery Charges', price: 50 }
+    ];
+
+    let historyRecords = [];
+
+    let shopProfile = {
+      name: 'My Shop Name',
+      address: 'Main Market, Shop #12',
+      phone: '+91 9876543210',
+      gstin: '',
+      upi: '',
+      logo: ''
+    };
+
+    window.onload = function() {
+      lucide.createIcons();
+
+      const savedProfile = localStorage.getItem('quickbill_shop_profile');
+      if (savedProfile) {
+        try { shopProfile = JSON.parse(savedProfile); updateShopNameBadge(); } catch (e) {}
+      } else {
+        setTimeout(() => openSettingsModal(), 500);
+      }
+
+      const savedCatalog = localStorage.getItem('quickbill_catalog');
+      if (savedCatalog) {
+        try { catalog = JSON.parse(savedCatalog); } catch(e) {}
+      }
+
+      const savedHistory = localStorage.getItem('quickbill_history');
+      if (savedHistory) {
+        try { historyRecords = JSON.parse(savedHistory); } catch(e) {}
+      }
+
+      updateCatalogDatalist();
+      renderItems();
+      calculateTotals();
+
+      document.getElementById('doc-number').value = String(Math.floor(Math.random() * 900) + 100);
+    };
+
+    function setCurrency(c) {
+      currencySymbol = c;
+      document.querySelectorAll('.currency-symbol').forEach(el => el.innerText = c);
+      calculateTotals();
+    }
+
+    function showToast(message, type = 'info') {
+      const toastContainer = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      const bgColor = type === 'success' ? 'bg-emerald-600' : (type === 'error' ? 'bg-rose-600' : 'bg-slate-800');
+      toast.className = `${bgColor} text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-xl border border-white/10 flex items-center justify-between transition-all duration-300 opacity-0`;
+      toast.innerHTML = `<span>${message}</span>`;
+      toastContainer.appendChild(toast);
+      setTimeout(() => toast.classList.remove('opacity-0'), 10);
+      setTimeout(() => { toast.classList.add('opacity-0'); setTimeout(() => toast.remove(), 300); }, 3500);
+    }
+
+    function openSettingsModal() {
+      document.getElementById('setup-shop-name').value = shopProfile.name || '';
+      document.getElementById('setup-shop-address').value = shopProfile.address || '';
+      document.getElementById('setup-shop-phone').value = shopProfile.phone || '';
+      document.getElementById('setup-shop-gstin').value = shopProfile.gstin || '';
+      document.getElementById('setup-shop-upi').value = shopProfile.upi || '';
+      updateLogoPreview(shopProfile.logo || '');
+      renderSettingsCatalogList();
+      document.getElementById('settings-modal').classList.remove('hidden');
+    }
+
+    function closeSettingsModal() { document.getElementById('settings-modal').classList.add('hidden'); }
+
+    function handleLogoUpload(event) {
+      const file = event.target.files[0];
+      if (file) {
+        if (file.size > 2 * 1024 * 1024) { showToast("Logo size under 2MB", "error"); return; }
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          shopProfile.logo = e.target.result;
+          updateLogoPreview(e.target.result);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function removeShopLogo() {
+      shopProfile.logo = '';
+      document.getElementById('setup-shop-logo').value = '';
+      updateLogoPreview('');
+    }
+
+    function updateLogoPreview(logoUrl) {
+      const previewImg = document.getElementById('setup-logo-preview');
+      const placeholderIcon = document.getElementById('logo-placeholder-icon');
+      const removeBtn = document.getElementById('btn-remove-logo');
+      if (logoUrl) {
+        previewImg.src = logoUrl;
+        previewImg.classList.remove('hidden');
+        placeholderIcon.classList.add('hidden');
+        removeBtn.classList.remove('hidden');
+      } else {
+        previewImg.src = '';
+        previewImg.classList.add('hidden');
+        placeholderIcon.classList.remove('hidden');
+        removeBtn.classList.add('hidden');
+      }
+    }
+
+    function renderSettingsCatalogList() {
+      const container = document.getElementById('settings-catalog-list');
+      document.getElementById('catalog-count-badge').innerText = `${catalog.length} Saved`;
+      if (catalog.length === 0) {
+        container.innerHTML = `<span class="text-slate-500 italic">No saved items yet.</span>`;
+        return;
+      }
+      container.innerHTML = catalog.map((item, i) => `
+        <div class="flex justify-between items-center bg-slate-900 p-1.5 rounded border border-slate-800">
+          <span class="text-white">${item.description} (${currencySymbol}${item.price})</span>
+          <button onclick="deleteCatalogItem(${i})" class="text-red-400 p-1"><i data-lucide="trash-2" class="w-3 h-3"></i></button>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    function deleteCatalogItem(index) {
+      catalog.splice(index, 1);
+      localStorage.setItem('quickbill_catalog', JSON.stringify(catalog));
+      updateCatalogDatalist();
+      renderSettingsCatalogList();
+    }
+
+    function saveShopProfile() {
+      const name = document.getElementById('setup-shop-name').value.trim();
+      if (!name) { showToast("Shop Name is required!", "error"); return; }
+      shopProfile = {
+        name: name,
+        address: document.getElementById('setup-shop-address').value.trim(),
+        phone: document.getElementById('setup-shop-phone').value.trim(),
+        gstin: document.getElementById('setup-shop-gstin').value.trim(),
+        upi: document.getElementById('setup-shop-upi').value.trim(),
+        logo: shopProfile.logo || ''
+      };
+      localStorage.setItem('quickbill_shop_profile', JSON.stringify(shopProfile));
+      updateShopNameBadge();
+      closeSettingsModal();
+      showToast("Profile saved!", "success");
+    }
+
+    function updateShopNameBadge() {
+      const badge = document.getElementById('shop-name-badge');
+      if (shopProfile.name) {
+        badge.innerText = shopProfile.name.length > 10 ? shopProfile.name.substring(0, 10) + '...' : shopProfile.name;
+      }
+    }
+
+    function updateCatalogDatalist() {
+      const datalist = document.getElementById('catalog-suggestions');
+      datalist.innerHTML = '';
+      catalog.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item.description;
+        option.label = `${currencySymbol}${item.price}`;
+        datalist.appendChild(option);
+      });
+    }
+
+    function handleDescriptionInput(id, val) {
+      updateItem(id, 'description', val);
+      const matched = catalog.find(c => c.description.toLowerCase() === val.trim().toLowerCase());
+      if (matched) {
+        items = items.map(i => i.id === id ? { ...i, price: matched.price || i.price } : i);
+        renderItems();
+        calculateTotals();
+      }
+    }
+
+    function learnNewCatalogItems() {
+      let catalogChanged = false;
+      items.forEach(item => {
+        if (item.description && item.description.trim()) {
+          const desc = item.description.trim();
+          const existingIdx = catalog.findIndex(c => c.description.toLowerCase() === desc.toLowerCase());
+          if (existingIdx >= 0) {
+            catalog[existingIdx].price = item.price || catalog[existingIdx].price;
+          } else {
+            catalog.push({ description: desc, price: item.price || 0 });
+            catalogChanged = true;
+          }
+        }
+      });
+      if (catalogChanged) {
+        localStorage.setItem('quickbill_catalog', JSON.stringify(catalog));
+        updateCatalogDatalist();
+      }
+    }
+
+    function updateValidityDays(val) { validityDays = Number(val) || 7; }
+
+    function setDocType(type) {
+      currentDocType = type;
+      document.querySelectorAll('.doc-type-btn').forEach(btn => {
+        btn.className = "doc-type-btn flex-1 py-2.5 rounded-xl text-xs font-bold transition text-center text-slate-400 hover:text-white";
+      });
+      const activeBtn = document.getElementById(`type-${type}`);
+      if (activeBtn) activeBtn.className = "doc-type-btn flex-1 py-2.5 rounded-xl text-xs font-bold transition text-center bg-emerald-500 text-slate-950 shadow";
+
+      const validityContainer = document.getElementById('validity-container');
+      if (type === 'Quotation') validityContainer.classList.remove('hidden');
+      else validityContainer.classList.add('hidden');
+    }
+
+    function renderItems() {
+      const container = document.getElementById('items-container');
+      container.innerHTML = '';
+      document.getElementById('items-count').innerText = `${items.length} ${items.length === 1 ? 'Item' : 'Items'}`;
+
+      items.forEach((item, index) => {
+        const itemCard = document.createElement('div');
+        itemCard.className = "bg-slate-900 p-4 rounded-2xl border border-slate-800 space-y-3 shadow-sm";
+        itemCard.innerHTML = `
+          <div class="flex items-center gap-2">
+            <input 
+              type="text" 
+              list="catalog-suggestions"
+              placeholder="Item ${index + 1} Description" 
+              value="${item.description}" 
+              oninput="handleDescriptionInput(${item.id}, this.value)"
+              class="w-full bg-slate-950 text-base font-semibold text-white p-3.5 rounded-xl border border-slate-800 outline-none focus:border-emerald-500/50"
+            />
+            ${items.length > 1 ? `
+              <button type="button" onclick="removeItem(${item.id})" class="p-2.5 text-slate-500 hover:text-red-400">
+                <i data-lucide="trash-2" class="w-5 h-5"></i>
+              </button>
+            ` : ''}
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Qty</label>
+              <div class="flex items-center bg-slate-950 rounded-xl border border-slate-800 p-1">
+                <button type="button" onclick="adjustQty(${item.id}, -1)" class="w-11 h-11 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-lg">-</button>
+                <input type="number" value="${item.qty}" oninput="updateItem(${item.id}, 'qty', Number(this.value))" class="w-full bg-transparent text-center text-base font-mono font-bold text-emerald-400 outline-none" />
+                <button type="button" onclick="adjustQty(${item.id}, 1)" class="w-11 h-11 rounded-lg bg-slate-900 flex items-center justify-center text-white font-bold text-lg">+</button>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-400 uppercase mb-1.5">Price (${currencySymbol})</label>
+              <input type="number" placeholder="0.00" value="${item.price}" oninput="updateItem(${item.id}, 'price', Number(this.value))" class="w-full bg-slate-950 text-base font-mono font-bold text-right text-white p-3.5 rounded-xl border border-slate-800 outline-none" />
+            </div>
+          </div>
+        `;
+        container.appendChild(itemCard);
+      });
+      lucide.createIcons();
+    }
+
+    function addItem() {
+      items.push({ id: Date.now(), description: '', qty: 1, price: '' });
+      renderItems();
+      calculateTotals();
+    }
+
+    function removeItem(id) {
+      if (items.length > 1) { items = items.filter(i => i.id !== id); renderItems(); calculateTotals(); }
+    }
+
+    function updateItem(id, field, value) {
+      items = items.map(item => item.id === id ? { ...item, [field]: value } : item);
+      calculateTotals();
+    }
+
+    function adjustQty(id, delta) {
+      items = items.map(item => item.id === id ? { ...item, qty: Math.max(1, (Number(item.qty) || 0) + delta) } : item);
+      renderItems();
+      calculateTotals();
+    }
+
+    function toggleTaxSetting() {
+      isTaxEnabled = document.getElementById('tax-toggle').checked;
+      document.getElementById('tax-rate').disabled = !isTaxEnabled;
+      calculateTotals();
+    }
+
+    function calculateTotals() {
+      const subtotal = items.reduce((sum, item) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0), 0);
+      const taxRate = isTaxEnabled ? (Number(document.getElementById('tax-rate').value) || 0) : 0;
+      const taxAmount = (subtotal * taxRate) / 100;
+      const discountAmount = Number(document.getElementById('discount-amount').value) || 0;
+      const grandTotal = Math.max(0, subtotal + taxAmount - discountAmount);
+
+      document.getElementById('summary-subtotal').innerText = `${currencySymbol}${subtotal.toFixed(2)}`;
+      
+      const rowTax = document.getElementById('row-tax-summary');
+      if (isTaxEnabled && taxAmount > 0) {
+        rowTax.classList.remove('hidden');
+        document.getElementById('summary-tax').innerText = `+${currencySymbol}${taxAmount.toFixed(2)}`;
+      } else rowTax.classList.add('hidden');
+
+      const rowDiscount = document.getElementById('row-discount-summary');
+      if (discountAmount > 0) {
+        rowDiscount.classList.remove('hidden');
+        document.getElementById('summary-discount').innerText = `-${currencySymbol}${discountAmount.toFixed(2)}`;
+      } else rowDiscount.classList.add('hidden');
+
+      document.getElementById('summary-grandtotal').innerText = `${currencySymbol}${grandTotal.toFixed(2)}`;
+
+      return { subtotal, taxRate, taxAmount, discountAmount, grandTotal };
+    }
+
+    function generateDocument() {
+      if (!shopProfile.name) { openSettingsModal(); return; }
+
+      learnNewCatalogItems();
+      const totals = calculateTotals();
+      const docNum = document.getElementById('doc-number').value || '101';
+      const clientName = document.getElementById('client-name').value.trim();
+      const clientPhone = document.getElementById('client-phone').value.trim();
+      const clientAddress = document.getElementById('client-address').value.trim();
+      const paymentStatus = document.getElementById('payment-status-select').value;
+
+      saveToHistory({ docNum, currentDocType, clientName, clientPhone, total: totals.grandTotal, date: new Date().toLocaleDateString('en-IN') });
+
+      const viewThermal = document.getElementById('view-thermal');
+      const viewA4 = document.getElementById('view-a4');
+      const now = new Date();
+
+      if (currentDocType === 'Cash Bill') {
+        viewA4.classList.add('hidden');
+        viewThermal.classList.remove('hidden');
+
+        document.getElementById('modal-title-text').innerText = "Thermal Cash Receipt";
+
+        const thermalLogo = document.getElementById('thermal-shop-logo');
+        if (shopProfile.logo) { thermalLogo.src = shopProfile.logo; thermalLogo.classList.remove('hidden'); }
+        else thermalLogo.classList.add('hidden');
+
+        document.getElementById('thermal-shop-name').innerText = shopProfile.name;
+        document.getElementById('thermal-shop-address').innerText = shopProfile.address || '';
+        document.getElementById('thermal-shop-phone').innerText = shopProfile.phone ? `Ph: ${shopProfile.phone}` : '';
+
+        document.getElementById('thermal-doc-num').innerText = `#${docNum}`;
+        document.getElementById('thermal-date').innerText = now.toLocaleDateString('en-IN');
+        document.getElementById('thermal-time').innerText = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+        const tbody = document.getElementById('thermal-items-body');
+        tbody.innerHTML = items.map(item => `
+          <tr>
+            <td class="py-1 font-semibold leading-tight">${item.description || 'Item'}</td>
+            <td class="py-1 text-center font-bold">${item.qty}</td>
+            <td class="py-1 text-right font-bold">${currencySymbol}${((item.qty||0)*(item.price||0)).toFixed(2)}</td>
+          </tr>
+        `).join('');
+
+        document.getElementById('thermal-subtotal').innerText = `${currencySymbol}${totals.subtotal.toFixed(2)}`;
+
+        const thermalTaxRow = document.getElementById('thermal-tax-row');
+        if (isTaxEnabled && totals.taxAmount > 0) {
+          document.getElementById('thermal-tax-pct').innerText = totals.taxRate;
+          document.getElementById('thermal-tax').innerText = `+${currencySymbol}${totals.taxAmount.toFixed(2)}`;
+          thermalTaxRow.classList.remove('hidden');
+        } else thermalTaxRow.classList.add('hidden');
+
+        const thermalDiscountRow = document.getElementById('thermal-discount-row');
+        if (totals.discountAmount > 0) {
+          document.getElementById('thermal-discount').innerText = `-${currencySymbol}${totals.discountAmount.toFixed(2)}`;
+          thermalDiscountRow.classList.remove('hidden');
+        } else thermalDiscountRow.classList.add('hidden');
+
+        document.getElementById('thermal-grandtotal').innerText = `${currencySymbol}${totals.grandTotal.toFixed(2)}`;
+
+        const qrContainer = document.getElementById('thermal-qr-container');
+        if (shopProfile.upi) {
+          document.getElementById('thermal-qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=${encodeURIComponent(shopProfile.upi)}%26pn=${encodeURIComponent(shopProfile.name)}%26am=${totals.grandTotal}`;
+          qrContainer.classList.remove('hidden');
+        } else qrContainer.classList.add('hidden');
+
+      } else {
+        viewThermal.classList.add('hidden');
+        viewA4.classList.remove('hidden');
+
+        document.getElementById('modal-title-text').innerText = `${currentDocType} (A4)`;
+
+        const a4Logo = document.getElementById('a4-shop-logo');
+        if (shopProfile.logo) { a4Logo.src = shopProfile.logo; a4Logo.classList.remove('hidden'); }
+        else a4Logo.classList.add('hidden');
+
+        document.getElementById('a4-shop-name').innerText = shopProfile.name;
+        document.getElementById('a4-shop-address').innerText = shopProfile.address || '';
+
+        const statusBadge = document.getElementById('a4-status-badge');
+        statusBadge.innerText = paymentStatus;
+        if (paymentStatus === 'PAID') statusBadge.className = "px-2.5 py-0.5 font-black text-[10px] uppercase rounded-md border border-emerald-500 text-emerald-700 bg-emerald-50";
+        else if (paymentStatus === 'PENDING') statusBadge.className = "px-2.5 py-0.5 font-black text-[10px] uppercase rounded-md border border-red-500 text-red-700 bg-red-50";
+        else statusBadge.className = "px-2.5 py-0.5 font-black text-[10px] uppercase rounded-md border border-amber-500 text-amber-700 bg-amber-50";
+
+        document.getElementById('a4-doc-type').innerText = currentDocType.toUpperCase();
+        document.getElementById('a4-doc-num').innerText = docNum;
+        document.getElementById('a4-doc-date').innerText = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+        const validityWrap = document.getElementById('a4-validity-wrap');
+        const termsList = document.getElementById('a4-terms-list');
+
+        if (currentDocType === 'Quotation') {
+          const validDate = new Date(now.getTime() + validityDays * 24 * 60 * 60 * 1000);
+          const validDateStr = validDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+          document.getElementById('a4-validity-date').innerText = validDateStr;
+          validityWrap.classList.remove('hidden');
+          termsList.innerHTML = `<li>Valid for ${validityDays} days from issue date (Valid till: <strong>${validDateStr}</strong>).</li><li>Prices subject to change after validity.</li>`;
+        } else {
+          validityWrap.classList.add('hidden');
+          termsList.innerHTML = `<li>Payment due upon receipt.</li><li>Goods once sold will not be exchanged.</li>`;
+        }
+
+        document.getElementById('a4-client-name').innerText = clientName || 'Valued Customer';
+
+        const tbody = document.getElementById('a4-items-body');
+        tbody.innerHTML = items.map((item, idx) => `
+          <tr class="${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}">
+            <td class="py-3 px-4 font-bold text-slate-400">${idx + 1}</td>
+            <td class="py-3 px-4 font-semibold text-slate-900">${item.description || 'Item'}</td>
+            <td class="py-3 px-4 text-center font-bold text-slate-700">${item.qty}</td>
+            <td class="py-3 px-4 text-right font-mono text-slate-700">${currencySymbol}${Number(item.price||0).toFixed(2)}</td>
+            <td class="py-3 px-4 text-right font-mono font-bold text-slate-900">${currencySymbol}${((item.qty||0)*(item.price||0)).toFixed(2)}</td>
+          </tr>
+        `).join('');
+
+        document.getElementById('a4-subtotal').innerText = `${currencySymbol}${totals.subtotal.toFixed(2)}`;
+
+        const a4TaxRow = document.getElementById('a4-tax-row');
+        if (isTaxEnabled && totals.taxAmount > 0) {
+          document.getElementById('a4-tax-pct').innerText = totals.taxRate;
+          document.getElementById('a4-tax').innerText = `+${currencySymbol}${totals.taxAmount.toFixed(2)}`;
+          a4TaxRow.classList.remove('hidden');
+        } else a4TaxRow.classList.add('hidden');
+
+        const a4DiscountRow = document.getElementById('a4-discount-row');
+        if (totals.discountAmount > 0) {
+          document.getElementById('a4-discount').innerText = `-${currencySymbol}${totals.discountAmount.toFixed(2)}`;
+          a4DiscountRow.classList.remove('hidden');
+        } else a4DiscountRow.classList.add('hidden');
+
+        document.getElementById('a4-grandtotal').innerText = `${currencySymbol}${totals.grandTotal.toFixed(2)}`;
+
+        const upiBox = document.getElementById('a4-upi-box');
+        if (shopProfile.upi) {
+          document.getElementById('a4-qr-code').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=${encodeURIComponent(shopProfile.upi)}%26pn=${encodeURIComponent(shopProfile.name)}%26am=${totals.grandTotal}`;
+          document.getElementById('a4-upi-id').innerText = shopProfile.upi;
+          upiBox.classList.remove('hidden');
+        } else upiBox.classList.add('hidden');
+      }
+
+      document.getElementById('doc-modal').classList.remove('hidden');
+    }
+
+    function saveToHistory(record) {
+      historyRecords.unshift(record);
+      if (historyRecords.length > 50) historyRecords.pop();
+      localStorage.setItem('quickbill_history', JSON.stringify(historyRecords));
+    }
+
+    function openHistoryModal() {
+      renderHistoryList(historyRecords);
+      document.getElementById('history-modal').classList.remove('hidden');
+    }
+
+    function closeHistoryModal() { document.getElementById('history-modal').classList.add('hidden'); }
+
+    function filterHistory(q) {
+      const filtered = historyRecords.filter(r => 
+        (r.clientName && r.clientName.toLowerCase().includes(q.toLowerCase())) || 
+        (r.docNum && r.docNum.includes(q))
+      );
+      renderHistoryList(filtered);
+    }
+
+    function renderHistoryList(list) {
+      const container = document.getElementById('history-list');
+      if (list.length === 0) {
+        container.innerHTML = `<p class="text-slate-500 text-xs italic text-center py-4">No invoice history found.</p>`;
+        return;
+      }
+      container.innerHTML = list.map((item, idx) => `
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+          <div>
+            <span class="font-bold text-white block">#${item.docNum} - ${item.clientName || 'Customer'}</span>
+            <span class="text-[10px] text-slate-500">${item.currentDocType} • ${item.date}</span>
+          </div>
+          <span class="font-mono font-bold text-emerald-400">${currencySymbol}${item.total.toFixed(2)}</span>
+        </div>
+      `).join('');
+    }
+
+    function closeDocModal() { document.getElementById('doc-modal').classList.add('hidden'); }
+
+    function downloadPDF() {
+      const element = document.getElementById(currentDocType === 'Cash Bill' ? 'view-thermal' : 'view-a4');
+      const docNum = document.getElementById('doc-number').value || '101';
+      showToast("Generating PDF...", "info");
+
+      const opt = {
+        margin: 5,
+        filename: `${currentDocType}_${docNum}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      html2pdf().set(opt).from(element).save().then(() => {
+        showToast("PDF Downloaded!", "success");
+      });
+    }
+
+    function downloadAsImage() {
+      const node = document.getElementById(currentDocType === 'Cash Bill' ? 'view-thermal' : 'view-a4');
+      showToast("Generating image...", "info");
+      html2canvas(node, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(canvas => {
+        const link = document.createElement('a');
+        const docNum = document.getElementById('doc-number').value || '101';
+        link.download = `${currentDocType}_${docNum}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast("Image saved!", "success");
+      });
+    }
+
+    async function shareToWhatsApp() {
+      const docNum = document.getElementById('doc-number').value || '101';
+      const clientPhone = document.getElementById('client-phone').value.trim().replace(/[^0-9]/g, '');
+
+      const node = document.getElementById(currentDocType === 'Cash Bill' ? 'view-thermal' : 'view-a4');
+      showToast("Preparing document image...", "info");
+
+      try {
+        // Generate high-resolution canvas image
+        const canvas = await html2canvas(node, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false
+        });
+
+        canvas.toBlob(async (blob) => {
+          if (!blob) {
+            showToast("Couldn't generate the image. Please try again.", "error");
+            return;
+          }
+
+          const fileName = `${currentDocType}_${docNum}.png`;
+          const file = new File([blob], fileName, { type: 'image/png' });
+
+          // 1. Mobile Web Share API: Supported on Mobile Chrome/Safari with HTTPS.
+          // Share ONLY the image file (no text) so WhatsApp receives the bill as
+          // a picture, not a text message.
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({
+                files: [file],
+                title: `${currentDocType} #${docNum}`
+              });
+              showToast("Shared successfully!", "success");
+              return;
+            } catch (shareErr) {
+              if (shareErr.name === 'AbortError') return; // User cancelled share dialog
+            }
+          }
+
+          // 2. Fallback for Desktop / browsers without native file sharing:
+          // put the image on the clipboard (or download it) and open the
+          // WhatsApp chat with NO pre-filled text, so the user just pastes
+          // (Ctrl+V) or attaches the image itself — never a text-only message.
+          let imageReady = false;
+          try {
+            if (navigator.clipboard && window.ClipboardItem) {
+              await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': blob })
+              ]);
+              imageReady = true;
+              showToast("Image copied! Paste it (Ctrl+V) into the WhatsApp chat.", "success");
+            }
+          } catch (clipErr) {
+            // Clipboard blocked by browser permissions — fall back to download.
+          }
+
+          if (!imageReady) {
+            const downloadLink = document.createElement('a');
+            downloadLink.download = fileName;
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.click();
+            showToast("Bill image downloaded — attach it in WhatsApp.", "info");
+          }
+
+          // Open the WhatsApp chat itself (no text), ready for the image.
+          setTimeout(() => {
+            openWhatsAppChat(clientPhone);
+          }, 800);
+
+        }, 'image/png');
+
+      } catch (canvasErr) {
+        console.error("Canvas generation failed:", canvasErr);
+        showToast("Couldn't generate the image. Please try again.", "error");
+      }
+    }
+
+    function openWhatsAppChat(phone) {
+      // No `text` param here on purpose — we only ever want the bill IMAGE
+      // to reach the chat, not a pre-filled text summary.
+      const waUrl = phone 
+        ? `https://wa.me/${phone}`
+        : `https://wa.me/`;
+      window.open(waUrl, '_blank');
+    }
+
+    // Register service worker: required for Chrome/Android to treat QuickBill
+    // as a full installable app ("Install app") instead of a plain
+    // "Add to Home screen" shortcut.
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW registration failed:', err));
+      });
+    }
+  </script>
+</body>
+</html>
